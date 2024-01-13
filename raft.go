@@ -1,6 +1,7 @@
 package uraft
 
 import (
+	"crypto/tls"
 	"net"
 	"net/netip"
 	"sync/atomic"
@@ -80,7 +81,7 @@ func (rf *raft) Start() chan ApplyMsg {
 			panic(err)
 		}
 		rf.conn = udpConn
-		listener, err := quic.Listen(udpConn, nil, nil)
+		listener, err := quic.Listen(udpConn, &tls.Config{}, nil)
 		if err != nil {
 			panic(err)
 		}

@@ -2,7 +2,8 @@ package uraft
 
 import (
 	"net"
-	"uraft/internal/pb/protobuf"
+
+	"github.com/markity/uraft/internal/pb/protobuf"
 )
 
 // 外部通过chan ApplyMsg收apply消息, 这个结构体需要导出

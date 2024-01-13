@@ -1,7 +1,7 @@
 package pb
 
 import (
-	"uraft/internal/pb/protobuf"
+	"github.com/markity/uraft/internal/pb/protobuf"
 
 	"google.golang.org/protobuf/proto"
 )

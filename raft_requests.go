@@ -3,7 +3,8 @@ package uraft
 import (
 	"bytes"
 	"context"
-	"uraft/internal/pb/protobuf"
+
+	"github.com/markity/uraft/internal/pb/protobuf"
 
 	"github.com/quic-go/quic-go"
 	"google.golang.org/protobuf/proto"

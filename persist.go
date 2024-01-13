@@ -2,8 +2,10 @@ package uraft
 
 import (
 	"bytes"
-	"uraft/internal/labgob"
-	"uraft/internal/structs"
+
+	"github.com/markity/uraft/internal/structs"
+
+	"github.com/markity/uraft/internal/labgob"
 )
 
 // 考虑到本地做压缩意义不大, 这里raft state直接用labgob压缩

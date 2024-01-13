@@ -4,8 +4,10 @@ import (
 	"log"
 	"math/rand"
 	"time"
-	"uraft/internal/pb/protobuf"
-	"uraft/internal/structs"
+
+	"github.com/markity/uraft/internal/structs"
+
+	"github.com/markity/uraft/internal/pb/protobuf"
 )
 
 func (rf *raft) randElectionTimer() {

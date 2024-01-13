@@ -5,9 +5,11 @@ import (
 	"net/netip"
 	"sync/atomic"
 	"time"
-	pers "uraft/internal/persister"
-	"uraft/internal/structs"
-	unboundedqueue "uraft/internal/unbounded_queue"
+
+	unboundedqueue "github.com/markity/uraft/internal/unbounded_queue"
+
+	pers "github.com/markity/uraft/internal/persister"
+	"github.com/markity/uraft/internal/structs"
 
 	"github.com/quic-go/quic-go"
 )

@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"io"
-	"uraft/internal/pb/protobuf"
-	"uraft/internal/structs"
+
+	"github.com/markity/uraft/internal/structs"
+
+	"github.com/markity/uraft/internal/pb/protobuf"
 
 	quic "github.com/quic-go/quic-go"
 	"google.golang.org/protobuf/proto"

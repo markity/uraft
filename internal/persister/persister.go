@@ -1,6 +1,10 @@
 package persister
 
-import "github.com/tidwall/wal"
+import (
+	"errors"
+
+	"github.com/tidwall/wal"
+)
 
 type Persister struct {
 	RaftStateLog          *wal.Log
@@ -71,7 +75,9 @@ func NewPersister(name string) (*Persister, error) {
 
 	data, err := sl.Read(slidx)
 	if err != nil {
-		panic(err)
+		if !errors.Is(err, wal.ErrNotFound) {
+			panic(err)
+		}
 	}
 
 	return &Persister{

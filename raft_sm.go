@@ -117,7 +117,7 @@ func (rf *raft) stateMachine() {
 		}
 	}(rf.applyCh)
 
-	go runQuicServer(rf.quicListener, rf.messagePipeLine, rf.quicServerCloseChan)
+	go runServer(rf.listener, rf.messagePipeLine, rf.quicServerCloseChan)
 
 	rf.readPersist(rf.persister.GetRaftState())
 	rf.state.State = "follower"
@@ -253,7 +253,7 @@ func (rf *raft) stateMachine() {
 				}
 			case c := <-rf.reqGetState:
 				c <- structs.GetStateInfo{
-					Term:         rf.me,
+					Term:         rf.state.Term,
 					Isleader:     rf.state.State == "leader",
 					SnapshotSize: rf.persister.GetSnapshotSize(),
 				}
@@ -272,8 +272,7 @@ func (rf *raft) stateMachine() {
 
 				info.SnapshotOKChan <- struct{}{}
 			case c := <-rf.reqDead:
-				rf.quicListener.Close()
-				rf.conn.Close()
+				rf.listener.Close()
 				rf.applyQueue.Close()
 				c <- struct{}{}
 				return

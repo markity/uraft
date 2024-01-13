@@ -1,6 +1,8 @@
 package uraft
 
-import "sort"
+import (
+	"sort"
+)
 
 func min(a int64, b int64) int64 {
 	if a < b {

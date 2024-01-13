@@ -1,9 +1,9 @@
 package uraft
 
 import (
-	"context"
 	"errors"
 	"io"
+	"net"
 
 	"github.com/markity/uraft/internal/structs"
 
@@ -15,25 +15,21 @@ import (
 
 // 启动quic server, closeChan用来防止阻塞在<-messageChan上
 // TODO: 现在接收连接是串行的, 是否需要并发处理?
-func runQuicServer(listener *quic.Listener, messageChan chan structs.Message, closeChan chan struct{}) {
+func runServer(listener *net.TCPListener, messageChan chan structs.Message, closeChan chan struct{}) {
 	for {
-		conn, err := listener.Accept(context.Background())
+		conn, err := listener.Accept()
 		if err != nil {
 			if errors.Is(err, quic.ErrServerClosed) {
 				return
 			}
 			continue
 		}
-		stream, err := conn.OpenStream()
+		bs, err := io.ReadAll(conn)
 		if err != nil {
+			conn.Close()
 			continue
 		}
-		bs, err := io.ReadAll(stream)
-		if err != nil {
-			stream.Close()
-			continue
-		}
-		stream.Close()
+		conn.Close()
 
 		// 分包格式, 第一个字节表示包的类型, 接下来的所有字节构成包的本体
 		typ := bs[0]
@@ -97,15 +93,13 @@ func runQuicServer(listener *quic.Listener, messageChan chan structs.Message, cl
 			panic("unexpected")
 		}
 
-		for {
-			select {
-			case messageChan <- structs.Message{
-				Term: term,
-				Msg:  msg,
-			}:
-			case <-closeChan:
-				return
-			}
+		select {
+		case messageChan <- structs.Message{
+			Term: term,
+			Msg:  msg,
+		}:
+		case <-closeChan:
+			return
 		}
 	}
 }

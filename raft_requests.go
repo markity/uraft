@@ -2,11 +2,10 @@ package uraft
 
 import (
 	"bytes"
-	"context"
+	"net"
 
 	"github.com/markity/uraft/internal/pb/protobuf"
 
-	"github.com/quic-go/quic-go"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -14,17 +13,11 @@ import (
 func (rf *raft) sendVoteRequest(to int64, req *protobuf.VoteRequest) {
 	peer := rf.peersIP[to]
 	go func() {
-		conn, err := quic.DialAddr(context.Background(), peer.String(), nil, nil)
+		conn, err := net.Dial("tcp", peer.String())
 		if err != nil {
 			return
 		}
-		defer conn.CloseWithError(0, "close")
-
-		stream, err := conn.OpenStream()
-		if err != nil {
-			return
-		}
-		defer stream.Close()
+		defer conn.Close()
 
 		buf := bytes.Buffer{}
 		bs, err := proto.Marshal(req)
@@ -33,7 +26,7 @@ func (rf *raft) sendVoteRequest(to int64, req *protobuf.VoteRequest) {
 		}
 		buf.WriteByte(1)
 		buf.Write(bs)
-		stream.Write(buf.Bytes())
+		conn.Write(buf.Bytes())
 	}()
 }
 
@@ -41,17 +34,11 @@ func (rf *raft) sendVoteRequest(to int64, req *protobuf.VoteRequest) {
 func (rf *raft) sendVoteReply(to int64, req *protobuf.VoteReply) {
 	peer := rf.peersIP[to]
 	go func() {
-		conn, err := quic.DialAddr(context.Background(), peer.String(), nil, nil)
+		conn, err := net.Dial("tcp", peer.String())
 		if err != nil {
 			return
 		}
-		defer conn.CloseWithError(0, "close")
-
-		stream, err := conn.OpenStream()
-		if err != nil {
-			return
-		}
-		defer stream.Close()
+		defer conn.Close()
 
 		buf := bytes.Buffer{}
 		bs, err := proto.Marshal(req)
@@ -60,7 +47,7 @@ func (rf *raft) sendVoteReply(to int64, req *protobuf.VoteReply) {
 		}
 		buf.WriteByte(2)
 		buf.Write(bs)
-		stream.Write(buf.Bytes())
+		conn.Write(buf.Bytes())
 	}()
 }
 
@@ -68,17 +55,11 @@ func (rf *raft) sendVoteReply(to int64, req *protobuf.VoteReply) {
 func (rf *raft) sendAppendEntriesRequest(to int64, req *protobuf.AppendEntriesRequest) {
 	peer := rf.peersIP[to]
 	go func() {
-		conn, err := quic.DialAddr(context.Background(), peer.String(), nil, nil)
+		conn, err := net.Dial("tcp", peer.String())
 		if err != nil {
 			return
 		}
-		defer conn.CloseWithError(0, "close")
-
-		stream, err := conn.OpenStream()
-		if err != nil {
-			return
-		}
-		defer stream.Close()
+		defer conn.Close()
 
 		buf := bytes.Buffer{}
 		bs, err := proto.Marshal(req)
@@ -87,7 +68,7 @@ func (rf *raft) sendAppendEntriesRequest(to int64, req *protobuf.AppendEntriesRe
 		}
 		buf.WriteByte(3)
 		buf.Write(bs)
-		stream.Write(buf.Bytes())
+		conn.Write(buf.Bytes())
 	}()
 }
 
@@ -95,17 +76,11 @@ func (rf *raft) sendAppendEntriesRequest(to int64, req *protobuf.AppendEntriesRe
 func (rf *raft) sendAppendEntriesReply(to int64, req *protobuf.AppendEntriesReply) {
 	peer := rf.peersIP[to]
 	go func() {
-		conn, err := quic.DialAddr(context.Background(), peer.String(), nil, nil)
+		conn, err := net.Dial("tcp", peer.String())
 		if err != nil {
 			return
 		}
-		defer conn.CloseWithError(0, "close")
-
-		stream, err := conn.OpenStream()
-		if err != nil {
-			return
-		}
-		defer stream.Close()
+		defer conn.Close()
 
 		buf := bytes.Buffer{}
 		bs, err := proto.Marshal(req)
@@ -114,7 +89,7 @@ func (rf *raft) sendAppendEntriesReply(to int64, req *protobuf.AppendEntriesRepl
 		}
 		buf.WriteByte(4)
 		buf.Write(bs)
-		stream.Write(buf.Bytes())
+		conn.Write(buf.Bytes())
 	}()
 }
 
@@ -122,17 +97,11 @@ func (rf *raft) sendAppendEntriesReply(to int64, req *protobuf.AppendEntriesRepl
 func (rf *raft) sendInstallSnapshotRequest(to int64, req *protobuf.InstallSnapshotRequest) {
 	peer := rf.peersIP[to]
 	go func() {
-		conn, err := quic.DialAddr(context.Background(), peer.String(), nil, nil)
+		conn, err := net.Dial("tcp", peer.String())
 		if err != nil {
 			return
 		}
-		defer conn.CloseWithError(0, "close")
-
-		stream, err := conn.OpenStream()
-		if err != nil {
-			return
-		}
-		defer stream.Close()
+		defer conn.Close()
 
 		buf := bytes.Buffer{}
 		bs, err := proto.Marshal(req)
@@ -141,7 +110,7 @@ func (rf *raft) sendInstallSnapshotRequest(to int64, req *protobuf.InstallSnapsh
 		}
 		buf.WriteByte(5)
 		buf.Write(bs)
-		stream.Write(buf.Bytes())
+		conn.Write(buf.Bytes())
 	}()
 }
 
@@ -149,17 +118,11 @@ func (rf *raft) sendInstallSnapshotRequest(to int64, req *protobuf.InstallSnapsh
 func (rf *raft) sendInstallSnapshotReply(to int64, req *protobuf.InstallSnapshotReply) {
 	peer := rf.peersIP[to]
 	go func() {
-		conn, err := quic.DialAddr(context.Background(), peer.String(), nil, nil)
+		conn, err := net.Dial("tcp", peer.String())
 		if err != nil {
 			return
 		}
-		defer conn.CloseWithError(0, "close")
-
-		stream, err := conn.OpenStream()
-		if err != nil {
-			return
-		}
-		defer stream.Close()
+		defer conn.Close()
 
 		buf := bytes.Buffer{}
 		bs, err := proto.Marshal(req)
@@ -168,6 +131,6 @@ func (rf *raft) sendInstallSnapshotReply(to int64, req *protobuf.InstallSnapshot
 		}
 		buf.WriteByte(6)
 		buf.Write(bs)
-		stream.Write(buf.Bytes())
+		conn.Write(buf.Bytes())
 	}()
 }

@@ -28,6 +28,9 @@ func (p *Persister) Save(raftState []byte, snapshot []byte) {
 }
 
 func (p *Persister) GetRaftState() []byte {
+	if p.RaftStateLastLogIndex == 0 {
+		return nil
+	}
 	bs, err := p.RaftStateLog.Read(uint64(p.RaftStateLastLogIndex))
 	if err != nil {
 		panic(err)
@@ -36,6 +39,9 @@ func (p *Persister) GetRaftState() []byte {
 }
 
 func (p *Persister) GetSnapshot() []byte {
+	if p.SnapshotLastLogIndex == 0 {
+		return nil
+	}
 	bs, err := p.SnapshotLog.Read(uint64(p.RaftStateLastLogIndex))
 	if err != nil {
 		panic(err)

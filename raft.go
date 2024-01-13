@@ -1,7 +1,6 @@
 package uraft
 
 import (
-	"crypto/tls"
 	"net"
 	"net/netip"
 	"sync/atomic"
@@ -11,8 +10,6 @@ import (
 
 	pers "github.com/markity/uraft/internal/persister"
 	"github.com/markity/uraft/internal/structs"
-
-	"github.com/quic-go/quic-go"
 )
 
 // RaftIface不是并发安全的
@@ -46,8 +43,7 @@ type raft struct {
 
 	persister *pers.Persister
 
-	conn         *net.UDPConn
-	quicListener *quic.Listener
+	listener *net.TCPListener
 
 	// 1 is started, 0 is stopped
 	started int64
@@ -73,19 +69,17 @@ func (rf *raft) Start() chan ApplyMsg {
 		}
 		ip := rf.peersIP[rf.me].Addr().As4()
 		port := rf.peersIP[rf.me].Port()
-		udpConn, err := net.ListenUDP("udp", &net.UDPAddr{
+		listener, err := net.ListenTCP("tcp", &net.TCPAddr{
 			IP:   net.IPv4(ip[0], ip[1], ip[2], ip[3]),
 			Port: int(port),
 		})
 		if err != nil {
 			panic(err)
 		}
-		rf.conn = udpConn
-		listener, err := quic.Listen(udpConn, &tls.Config{}, nil)
+		rf.listener = listener
 		if err != nil {
 			panic(err)
 		}
-		rf.quicListener = listener
 
 		go rf.stateMachine()
 		return applyCh

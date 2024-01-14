@@ -25,22 +25,33 @@ func (rf *raft) timerTimeout() {
 	rf.timer = time.After(0)
 }
 
+// 这个是给leader用的, 用于连续commit到applyCh的工具, 具体就是说收到leader心跳, 拿到commitIndex, 然后尝试commit这些日志
 func (rf *raft) commit(leaderCommitIndex int64, newEntry structs.LogEntry) {
 	if leaderCommitIndex > rf.state.CommitIndex {
 		oldCommitIndex := rf.state.CommitIndex
 		rf.state.CommitIndex = min(leaderCommitIndex, newEntry.LogIndex)
 
 		for i := oldCommitIndex + 1; i <= rf.state.CommitIndex; i++ {
-			_, ok := rf.state.Logs.FindLogByIndex(i)
+			l, ok := rf.state.Logs.FindLogByIndex(i)
 			if !ok {
 				log.Panicf("oldCommitIndex=%v newCommitIndex=%v i = %v logs=%v", oldCommitIndex, rf.state.CommitIndex, i, rf.state.Logs)
 			}
-			msg := ApplyMsg{
-				CommandValid: true,
-				CommandType:  newEntry.CommandType,
-				CommandBytes: newEntry.CommandBytes,
-				CommandIndex: i,
-				CommandTerm:  newEntry.LogTerm,
+
+			var msg ApplyMsg
+			if l.IsNoop {
+				msg = ApplyMsg{
+					IsNoop:    true,
+					NoopTerm:  l.LogTerm,
+					NoopIndex: l.LogIndex,
+				}
+			} else {
+				msg = ApplyMsg{
+					CommandValid: true,
+					CommandType:  l.CommandType,
+					CommandBytes: l.CommandBytes,
+					CommandIndex: l.LogIndex,
+					CommandTerm:  l.LogTerm,
+				}
 			}
 			rf.applyQueue.Push(msg)
 		}
@@ -71,17 +82,19 @@ func (rf *raft) leaderSendLogs(to int64) {
 		}
 		// 如果最后一个日志的编号>=nextIndex, 此时有日志可发, 需要拼装日志用AE发送
 		if lastLog.LogIndex >= rf.state.NextLogIndex[to] {
-			tobeSendLogs := make([]*protobuf.CommandEntry, 0)
+			tobeSendLogs := make([]*protobuf.LogEntry, 0)
 			for i := rf.state.NextLogIndex[to]; i <= lastLog.LogIndex; i++ {
 				l, ok := rf.state.Logs.FindLogByIndex(i)
 				if !ok {
 					panic("checkme")
 				}
-				tobeSendLogs = append(tobeSendLogs, &protobuf.CommandEntry{
+				tobeSendLogs = append(tobeSendLogs, &protobuf.LogEntry{
 					CommandType:  l.CommandType,
 					CommandBytes: l.CommandBytes,
+					IsNoop:       l.IsNoop,
+					LogIndex:     l.LogIndex,
+					LogTerm:      l.LogTerm,
 				})
-
 			}
 			rf.sendAppendEntriesRequest(to, &protobuf.AppendEntriesRequest{
 				Term:         rf.state.Term,
@@ -106,25 +119,28 @@ func (rf *raft) leaderSendLogs(to int64) {
 }
 
 func (rf *raft) stateMachine() {
+	queue := rf.applyQueue
 	go func(c chan ApplyMsg) {
-		all, err := rf.applyQueue.PopAll()
-		if err != nil {
-			return
-		}
-		for _, v := range all {
-			msg := v.(ApplyMsg)
-			c <- msg
+		for {
+			all, err := queue.PopAll()
+			if err != nil {
+				return
+			}
+			for _, v := range all {
+				msg := v.(ApplyMsg)
+				c <- msg
+			}
 		}
 	}(rf.applyCh)
 
-	go runServer(rf.listener, rf.messagePipeLine, rf.quicServerCloseChan)
+	go runServer(rf.listener, rf.messagePipeLine, rf.serverCloseChan)
 
 	rf.readPersist(rf.persister.GetRaftState())
 	rf.state.State = "follower"
 	rf.state.CandidateState = structs.CandidateState{ReceivedNAgrees: 0}
 	rf.state.LeaderState = structs.LeaderState{
-		NextLogIndex: make([]int64, len(rf.peersIP)+1),
-		MatchIndex:   make([]int64, len(rf.peersIP)+1),
+		NextLogIndex: make([]int64, len(rf.peersIP)),
+		MatchIndex:   make([]int64, len(rf.peersIP)),
 	}
 	rf.randElectionTimer()
 	snapShot := rf.persister.GetSnapshot()
@@ -286,12 +302,28 @@ func (rf *raft) stateMachine() {
 						IsLeader: false,
 					}
 				case "leader":
+					// 判断自己的noop是否被应用, 如果没有那么就no leader
+					lastCommited, ok := rf.state.PersistInfo.Logs.FindLogByIndex(rf.state.CommitIndex)
+					if !ok {
+						panic("checkme")
+					}
+					if lastCommited.LogTerm != rf.state.Term {
+						command.Resp <- structs.SendCmdRespInfo{
+							Term:     rf.state.Term,
+							Index:    -1,
+							IsLeader: false,
+						}
+						break
+					}
+
 					// 首先追加日志
 					rf.state.Logs.Append(structs.LogEntry{
 						LogTerm:      rf.state.PersistInfo.Term,
 						LogIndex:     int64(len(rf.state.PersistInfo.Logs)),
 						CommandType:  command.CommandType,
 						CommandBytes: command.CommandBytes,
+
+						IsNoop: false,
 					})
 					rf.persist(nil)
 					l := rf.state.Logs.LastLog().LogIndex
@@ -392,7 +424,6 @@ func (rf *raft) stateMachine() {
 					rf.state.CommitIndex = val.LastIncludedIndex
 					rf.persist(val.Snapshot)
 					rf.applyQueue.Push(ApplyMsg{
-						CommandValid:  false,
 						SnapshotValid: true,
 						Snapshot:      val.Snapshot,
 						SnapshotTerm:  val.LastIncludedTerm,
@@ -443,14 +474,20 @@ func (rf *raft) stateMachine() {
 						flag := false
 						for i := oldCommitIndex + 1; i <= rf.state.CommitIndex; i++ {
 							flag = true
-							msg := ApplyMsg{
-								CommandValid: true,
-								CommandType:  rf.state.Logs[i].CommandType,
-								CommandBytes: rf.state.Logs[i].CommandBytes,
-								CommandIndex: i,
-								CommandTerm:  rf.state.PersistInfo.Logs[i].LogTerm,
+							l, ok := rf.state.Logs.FindLogByIndex(i)
+							if !ok {
+								panic("checkme")
 							}
-							rf.applyQueue.Push(msg)
+							rf.applyQueue.Push(ApplyMsg{
+								CommandValid: !l.IsNoop,
+								CommandType:  l.CommandType,
+								CommandBytes: l.CommandBytes,
+								CommandIndex: l.LogIndex,
+								CommandTerm:  l.LogTerm,
+								IsNoop:       l.IsNoop,
+								NoopIndex:    l.LogIndex,
+								NoopTerm:     l.LogTerm,
+							})
 						}
 						if !flag {
 							panic("checkme")
@@ -484,10 +521,11 @@ func (rf *raft) stateMachine() {
 
 					if val.VoteGranted {
 						rf.state.ReceivedNAgrees++
+						// 收到半数以上选票, 变为leader
 						if rf.state.ReceivedNAgrees > len(rf.peersIP)/2 {
 							rf.state.State = "leader"
 							/*
-								上任后, 认为每个节点都同步到了最新的日志
+								上任后, 认为每个节点都同步到了最新的日志, 之后follower可以通过拒绝日志回溯所需日志
 								for each server, index of the next log entry
 								to send to that server (initialized to leader
 								last log index + 1)
@@ -498,7 +536,15 @@ func (rf *raft) stateMachine() {
 								rf.state.MatchIndex[i] = 0
 							}
 
-							// 简便方法, 直接超时
+							// 此处把nextIndex指向Noop日志, 让所有节点同步这个noop先, 可以确定, 别的节点肯定没有此noop
+							rf.state.PersistInfo.Logs.Append(structs.LogEntry{
+								LogTerm:  rf.state.PersistInfo.Term,
+								LogIndex: int64(len(rf.state.PersistInfo.Logs)),
+								IsNoop:   true,
+							})
+							rf.persist(nil)
+
+							// 简便方法, 直接超时发送心跳同步日志
 							rf.timerTimeout()
 						}
 					}
@@ -579,8 +625,9 @@ func (rf *raft) stateMachine() {
 					entries := make([]structs.LogEntry, 0)
 					for _, v := range val.Entries {
 						entries = append(entries, structs.LogEntry{
-							LogTerm:      v.CommandTerm,
-							LogIndex:     v.CommandIndex,
+							LogTerm:      v.LogTerm,
+							LogIndex:     v.LogIndex,
+							IsNoop:       v.IsNoop,
 							CommandType:  v.CommandType,
 							CommandBytes: v.CommandBytes,
 						})
@@ -780,14 +827,16 @@ func (rf *raft) stateMachine() {
 								if !ok {
 									panic("checkme")
 								}
-								msg := ApplyMsg{
-									CommandValid: true,
+								rf.applyQueue.Push(ApplyMsg{
+									CommandValid: !l.IsNoop,
 									CommandType:  l.CommandType,
 									CommandBytes: l.CommandBytes,
-									CommandIndex: i,
+									CommandIndex: l.LogIndex,
 									CommandTerm:  l.LogTerm,
-								}
-								rf.applyQueue.Push(msg)
+									IsNoop:       l.IsNoop,
+									NoopIndex:    l.LogIndex,
+									NoopTerm:     l.LogTerm,
+								})
 							}
 							if !flag {
 								panic("checkme")

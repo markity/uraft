@@ -17,11 +17,12 @@ message VoteReply {
 }
 
 // be used in AppendEntriesRequest
-message CommandEntry {
-	int64 command_index = 1;
-	int64 command_term = 2;
-    string command_type = 3;
-    bytes command_bytes = 4;
+message LogEntry {
+	bool is_noop = 1;
+	int64 log_index = 2;
+	int64 log_term = 3;
+    string command_type = 4;
+    bytes command_bytes = 5;
 }
 
 // 3
@@ -32,7 +33,7 @@ message AppendEntriesRequest {
 	int64 pre_log_term = 4;
 	// may send more than one for efficiency
 	// empty for heartbeat
-    repeated CommandEntry entries = 5;
+    repeated LogEntry entries = 5;
 	int64 leader_commit = 6;
 }
 

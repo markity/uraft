@@ -23,7 +23,9 @@ type RaftIface interface {
 type raft struct {
 	// 对等端的ip地址
 	peersIP []netip.AddrPort
-	me      int64
+
+	// peersIP[me] == 自己的ip地址
+	me int64
 
 	// snapshot和raft state保存的地方
 	logPath string
@@ -39,7 +41,7 @@ type raft struct {
 	timer      <-chan time.Time
 	state      structs.RaftState
 
-	quicServerCloseChan chan struct{}
+	serverCloseChan chan struct{}
 
 	persister *pers.Persister
 
@@ -53,6 +55,7 @@ func (rf *raft) Start() chan ApplyMsg {
 	ok := atomic.CompareAndSwapInt64(&rf.started, 0, 1)
 	if ok {
 		queue := unboundedqueue.NewUnboundedQueue()
+
 		rf.applyQueue = queue
 		rf.messagePipeLine = make(chan structs.Message)
 		rf.reqDead = make(chan chan struct{})
@@ -61,7 +64,7 @@ func (rf *raft) Start() chan ApplyMsg {
 		rf.snapshotChan = make(chan structs.DoSnapshotInfo)
 		applyCh := make(chan ApplyMsg)
 		rf.applyCh = applyCh
-		rf.quicServerCloseChan = make(chan struct{}, 1)
+		rf.serverCloseChan = make(chan struct{}, 1)
 		var err error
 		rf.persister, err = pers.NewPersister(rf.logPath)
 		if err != nil {

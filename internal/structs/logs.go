@@ -1,8 +1,12 @@
 package structs
 
 type LogEntry struct {
-	LogTerm      int64
-	LogIndex     int64
+	LogTerm  int64
+	LogIndex int64
+
+	// 注意: 如果不是noop, CommandType和CommandBytes才有意义
+	IsNoop bool
+
 	CommandType  string
 	CommandBytes []byte
 }

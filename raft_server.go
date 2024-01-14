@@ -9,7 +9,6 @@ import (
 
 	"github.com/markity/uraft/internal/pb/protobuf"
 
-	quic "github.com/quic-go/quic-go"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -19,7 +18,7 @@ func runServer(listener *net.TCPListener, messageChan chan structs.Message, clos
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			if errors.Is(err, quic.ErrServerClosed) {
+			if errors.Is(err, net.ErrClosed) {
 				return
 			}
 			continue

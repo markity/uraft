@@ -95,6 +95,7 @@ func (rf *raft) Stop() {
 	ok := atomic.CompareAndSwapInt64(&rf.started, 1, 0)
 	if ok {
 		rf.applyQueue.Close()
+		rf.listener.Close()
 		c := make(chan struct{}, 1)
 		rf.reqDead <- c
 		<-c

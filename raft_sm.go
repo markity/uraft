@@ -25,7 +25,7 @@ func (rf *raft) timerTimeout() {
 	rf.timer = time.After(0)
 }
 
-// 这个是给leader用的, 用于连续commit到applyCh的工具, 具体就是说收到leader心跳, 拿到commitIndex, 然后尝试commit这些日志
+// 用于连续commit到applyCh的工具, 具体就是说收到leader心跳, 拿到commitIndex, 然后尝试commit这些日志
 func (rf *raft) commit(leaderCommitIndex int64, newEntry structs.LogEntry) {
 	if leaderCommitIndex > rf.state.CommitIndex {
 		oldCommitIndex := rf.state.CommitIndex
@@ -468,30 +468,7 @@ func (rf *raft) stateMachine() {
 					N := sortedMatchIndex[len(rf.peersIP)/2]
 					if N > rf.state.CommitIndex && rf.state.PersistInfo.Logs.
 						GetByIndex(N).LogTerm == rf.state.PersistInfo.Term {
-
-						oldCommitIndex := rf.state.CommitIndex
-						rf.state.CommitIndex = N
-						flag := false
-						for i := oldCommitIndex + 1; i <= rf.state.CommitIndex; i++ {
-							flag = true
-							l, ok := rf.state.Logs.FindLogByIndex(i)
-							if !ok {
-								panic("checkme")
-							}
-							rf.applyQueue.Push(ApplyMsg{
-								CommandValid: !l.IsNoop,
-								CommandType:  l.CommandType,
-								CommandBytes: l.CommandBytes,
-								CommandIndex: l.LogIndex,
-								CommandTerm:  l.LogTerm,
-								IsNoop:       l.IsNoop,
-								NoopIndex:    l.LogIndex,
-								NoopTerm:     l.LogTerm,
-							})
-						}
-						if !flag {
-							panic("checkme")
-						}
+						rf.commit(N, rf.state.Logs.GetByIndex(N))
 					}
 				case *protobuf.VoteReply:
 					// 如果是>当前term, 那么马上转变成follower, 更新term
@@ -817,30 +794,7 @@ func (rf *raft) stateMachine() {
 						N := sortedMatchIndex[len(rf.peersIP)/2]
 						if N > rf.state.CommitIndex && rf.state.PersistInfo.Logs.
 							GetByIndex(N).LogTerm == rf.state.PersistInfo.Term {
-
-							oldCommitIndex := rf.state.CommitIndex
-							rf.state.CommitIndex = N
-							flag := false
-							for i := oldCommitIndex + 1; i <= rf.state.CommitIndex; i++ {
-								flag = true
-								l, ok := rf.state.Logs.FindLogByIndex(i)
-								if !ok {
-									panic("checkme")
-								}
-								rf.applyQueue.Push(ApplyMsg{
-									CommandValid: !l.IsNoop,
-									CommandType:  l.CommandType,
-									CommandBytes: l.CommandBytes,
-									CommandIndex: l.LogIndex,
-									CommandTerm:  l.LogTerm,
-									IsNoop:       l.IsNoop,
-									NoopIndex:    l.LogIndex,
-									NoopTerm:     l.LogTerm,
-								})
-							}
-							if !flag {
-								panic("checkme")
-							}
+							rf.commit(N, rf.state.Logs.GetByIndex(N))
 						}
 					}
 				}

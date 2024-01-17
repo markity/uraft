@@ -1,9 +1,9 @@
 package structs
 
 type GetStateInfo struct {
-	Term         int64
-	Isleader     bool
-	SnapshotSize int64
+	Term          int64
+	Isleader      bool
+	RaftStateSize int64
 }
 
 type SendCmdChanInfo struct {

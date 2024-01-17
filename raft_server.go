@@ -2,6 +2,7 @@ package uraft
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"net"
 
@@ -31,6 +32,9 @@ func runServer(listener *net.TCPListener, messageChan chan structs.Message, clos
 		conn.Close()
 
 		// 分包格式, 第一个字节表示包的类型, 接下来的所有字节构成包的本体
+		if len(bs) == 0 {
+			continue
+		}
 		typ := bs[0]
 		packet := bs[1:]
 		var term int64
@@ -89,7 +93,8 @@ func runServer(listener *net.TCPListener, messageChan chan structs.Message, clos
 			msg = &s
 			term = s.Term
 		default:
-			panic("unexpected")
+			fmt.Println("unexpected packet bytes ", bs)
+			continue
 		}
 
 		select {

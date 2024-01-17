@@ -269,9 +269,9 @@ func (rf *raft) stateMachine() {
 				}
 			case c := <-rf.reqGetState:
 				c <- structs.GetStateInfo{
-					Term:         rf.state.Term,
-					Isleader:     rf.state.State == "leader",
-					SnapshotSize: rf.persister.GetSnapshotSize(),
+					Term:          rf.state.Term,
+					Isleader:      rf.state.State == "leader",
+					RaftStateSize: int64(rf.persister.GetRaftStateSize()),
 				}
 			case info := <-rf.snapshotChan:
 				// 收到裁减log的命令, 需要进行日志裁减, 然后把新的snapshot持久化

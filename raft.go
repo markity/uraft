@@ -18,6 +18,7 @@ type RaftIface interface {
 	Stop()
 	GetRaftState() (isLeader bool, term int64, raftStateSize int64)
 	StartCommand(commandType string, commandBytes []byte) (idx int64, term int64, isLeader bool)
+	Snapshot(snapshotBytes []byte, idx int64)
 }
 
 type raft struct {
@@ -113,7 +114,7 @@ func (rf *raft) GetRaftState() (isLeader bool, term int64, raftStateSize int64) 
 	c := make(chan structs.GetStateInfo, 1)
 	rf.reqGetState <- c
 	s := <-c
-	return s.Isleader, s.Term, s.SnapshotSize
+	return s.Isleader, s.Term, s.RaftStateSize
 }
 
 func (rf *raft) StartCommand(typ string, bs []byte) (idx int64, term int64, isLeader bool) {

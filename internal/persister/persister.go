@@ -9,6 +9,7 @@ import (
 type Persister struct {
 	RaftStateLog          *wal.Log
 	RaftStateLastLogIndex int64
+	RaftStateSize         int64
 	SnapshotLog           *wal.Log
 	SnapshotLastLogIndex  int64
 	SnapshotSize          int64
@@ -18,6 +19,7 @@ func (p *Persister) Save(raftState []byte, snapshot []byte) {
 	if raftState != nil {
 		p.RaftStateLastLogIndex++
 		p.RaftStateLog.Write(uint64(p.RaftStateLastLogIndex), raftState)
+		p.RaftStateSize = int64(len(raftState))
 	}
 
 	if snapshot != nil {
@@ -38,11 +40,15 @@ func (p *Persister) GetRaftState() []byte {
 	return bs
 }
 
+func (p *Persister) GetRaftStateSize() int64 {
+	return p.RaftStateSize
+}
+
 func (p *Persister) GetSnapshot() []byte {
 	if p.SnapshotLastLogIndex == 0 {
 		return nil
 	}
-	bs, err := p.SnapshotLog.Read(uint64(p.RaftStateLastLogIndex))
+	bs, err := p.SnapshotLog.Read(uint64(p.SnapshotLastLogIndex))
 	if err != nil {
 		panic(err)
 	}

@@ -19,12 +19,14 @@ func (p *Persister) Save(raftState []byte, snapshot []byte) {
 	if raftState != nil {
 		p.RaftStateLastLogIndex++
 		p.RaftStateLog.Write(uint64(p.RaftStateLastLogIndex), raftState)
+		p.RaftStateLog.TruncateFront(uint64(p.RaftStateLastLogIndex))
 		p.RaftStateSize = int64(len(raftState))
 	}
 
 	if snapshot != nil {
 		p.SnapshotLastLogIndex++
 		p.SnapshotLog.Write(uint64(p.SnapshotLastLogIndex), snapshot)
+		p.SnapshotLog.TruncateFront(uint64(p.SnapshotLastLogIndex))
 		p.SnapshotSize = int64(len(snapshot))
 	}
 }

@@ -1,5 +1,7 @@
 package uraft
 
+import "net/netip"
+
 // 外部通过chan ApplyMsg收apply消息, 这个结构体需要导出
 type ApplyMsg struct {
 	// noop优化: 用于强制提交日志, leader需要写入noop日志用于强制提交, ApplyMsg会发给上层应用告知目前最新
@@ -22,7 +24,25 @@ type ApplyMsg struct {
 }
 
 type RaftConfig struct {
-	HeartbeatIntervalLowMS  int
-	HeartbeatIntervalHighMS int
-	ElectionIntervalMS      int
+	// IF <= 0, default 300
+	ElectionIntervalLowMS int
+
+	// IF <= 0, default ElectionIntervalLowMS + 150
+	ElectiontIntervalHighMS int
+
+	// IF <= 0, default 100
+	HeartbeatIntervalMS int
+
+	// IF <= 0, default Unlimited
+	MaxAppendEntries int64
+
+	// IF <= 0, default 0
+	ApplyChSize int
+
+	// Peers[Me] is current raft server's ip port
+	Peers []netip.AddrPort
+	Me    int64
+
+	// where to store data, both raft state info and snapshot info
+	LogPath string
 }

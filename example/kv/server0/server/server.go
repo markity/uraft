@@ -164,7 +164,11 @@ func StartKVServer(servers []netip.AddrPort, me int64, maxraftstate int64) *KVSe
 
 	// You may need initialization code here.
 
-	kv.rf = uraft.NewRaft(me, servers, "./log")
+	kv.rf = uraft.NewRaft(uraft.RaftConfig{
+		Peers:   servers,
+		Me:      0,
+		LogPath: "./log",
+	})
 	kv.applyCh = kv.rf.Start()
 	kv.notification = make(map[int64][]notifyStruct)
 	kv.duplicatedReqTable = make(map[int64]reqCache)

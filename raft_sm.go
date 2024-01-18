@@ -11,14 +11,14 @@ import (
 )
 
 func (rf *raft) randElectionTimer() {
-	t := time.Millisecond*_LEADER_ELECTION_TIMEOUT_LOW +
+	t := time.Millisecond*time.Duration(rf.cfg.ElectionIntervalLowMS) +
 		time.Millisecond*time.Duration(
-			(rand.Int()%(_LEADER_ELECTION_TIMEOUT_HIGH-_LEADER_ELECTION_TIMEOUT_LOW)))
+			(rand.Int()%(rf.cfg.ElectiontIntervalHighMS-rf.cfg.ElectionIntervalLowMS)))
 	rf.timer = time.After(t)
 }
 
 func (rf *raft) resetLeaderTimer() {
-	rf.timer = time.After(time.Millisecond * _HEARTBEAT_INTERVAL)
+	rf.timer = time.After(time.Millisecond * time.Duration(rf.cfg.HeartbeatIntervalMS))
 }
 
 func (rf *raft) timerTimeout() {
@@ -68,7 +68,7 @@ func (rf *raft) leaderSendLogs(to int64) {
 		s := rf.persister.GetSnapshot()
 		rf.sendInstallSnapshotRequest(to, &protobuf.InstallSnapshotRequest{
 			Term:              rf.state.Term,
-			LeaderId:          rf.me,
+			LeaderId:          rf.cfg.Me,
 			LastIncludedIndex: rf.state.LastIncludedIndex,
 			LastIncludedTerm:  rf.state.LastIncludedTerm,
 			Snapshot:          s,
@@ -98,7 +98,7 @@ func (rf *raft) leaderSendLogs(to int64) {
 			}
 			rf.sendAppendEntriesRequest(to, &protobuf.AppendEntriesRequest{
 				Term:         rf.state.Term,
-				LeaderId:     rf.me,
+				LeaderId:     rf.cfg.Me,
 				PreLogIndex:  preLog.LogIndex,
 				PreLogTerm:   preLog.LogTerm,
 				Entries:      tobeSendLogs,
@@ -108,7 +108,7 @@ func (rf *raft) leaderSendLogs(to int64) {
 			// 发心跳
 			rf.sendAppendEntriesRequest(to, &protobuf.AppendEntriesRequest{
 				Term:         rf.state.Term,
-				LeaderId:     rf.me,
+				LeaderId:     rf.cfg.Me,
 				PreLogIndex:  lastLog.LogIndex,
 				PreLogTerm:   lastLog.LogTerm,
 				Entries:      nil,
@@ -139,8 +139,8 @@ func (rf *raft) stateMachine() {
 	rf.state.State = "follower"
 	rf.state.CandidateState = structs.CandidateState{ReceivedNAgrees: 0}
 	rf.state.LeaderState = structs.LeaderState{
-		NextLogIndex: make([]int64, len(rf.peersIP)),
-		MatchIndex:   make([]int64, len(rf.peersIP)),
+		NextLogIndex: make([]int64, len(rf.cfg.Peers)),
+		MatchIndex:   make([]int64, len(rf.cfg.Peers)),
 	}
 	rf.randElectionTimer()
 	snapShot := rf.persister.GetSnapshot()
@@ -164,7 +164,7 @@ func (rf *raft) stateMachine() {
 				// TODO: 这样效率低下, 可以优化
 				rf.state.State = "candidate"
 				rf.state.ReceivedNAgrees = 1
-				rf.state.PersistInfo.VotedForThisTerm = rf.me
+				rf.state.PersistInfo.VotedForThisTerm = rf.cfg.Me
 				rf.state.PersistInfo.Term++
 				rf.persist(nil)
 				rf.randElectionTimer()
@@ -172,11 +172,11 @@ func (rf *raft) stateMachine() {
 				// 并发地发送选票请求
 				// 外部会共享这个变量, 为了并发安全我们需要拷贝一份t给协程用
 				lastLog := rf.state.Logs.LastLog()
-				for i := int64(0); i < int64(len(rf.peersIP)); i++ {
-					if i != rf.me {
+				for i := int64(0); i < int64(len(rf.cfg.Peers)); i++ {
+					if i != rf.cfg.Me {
 						rf.sendVoteRequest(i, &protobuf.VoteRequest{
 							Term:        rf.state.Term,
-							CandidateId: rf.me,
+							CandidateId: rf.cfg.Me,
 							LastLogIdx:  lastLog.LogIndex,
 							LastLogTerm: lastLog.LogTerm,
 						})
@@ -191,11 +191,11 @@ func (rf *raft) stateMachine() {
 				rf.randElectionTimer()
 
 				lastLog := rf.state.Logs.LastLog()
-				for i := int64(0); i < int64(len(rf.peersIP)); i++ {
-					if i != rf.me {
+				for i := int64(0); i < int64(len(rf.cfg.Peers)); i++ {
+					if i != rf.cfg.Me {
 						rf.sendVoteRequest(i, &protobuf.VoteRequest{
 							Term:        rf.state.Term,
-							CandidateId: rf.me,
+							CandidateId: rf.cfg.Me,
 							LastLogIdx:  lastLog.LogIndex,
 							LastLogTerm: lastLog.LogTerm,
 						})
@@ -203,8 +203,8 @@ func (rf *raft) stateMachine() {
 				}
 			// leader超时是定时器超时, 只需要发送心跳维统治即可
 			case "leader":
-				for i := int64(0); i < int64(len(rf.peersIP)); i++ {
-					if i != rf.me {
+				for i := int64(0); i < int64(len(rf.cfg.Peers)); i++ {
+					if i != rf.cfg.Me {
 						rf.leaderSendLogs(i)
 					}
 				}
@@ -221,7 +221,7 @@ func (rf *raft) stateMachine() {
 					// TODO: 这样效率低下, 可以优化
 					rf.state.State = "candidate"
 					rf.state.ReceivedNAgrees = 1
-					rf.state.PersistInfo.VotedForThisTerm = rf.me
+					rf.state.PersistInfo.VotedForThisTerm = rf.cfg.Me
 					rf.state.PersistInfo.Term++
 					rf.persist(nil)
 					rf.randElectionTimer()
@@ -229,11 +229,11 @@ func (rf *raft) stateMachine() {
 					// 并发地发送选票请求
 					// 外部会共享这个变量, 为了并发安全我们需要拷贝一份t给协程用
 					lastLog := rf.state.Logs.LastLog()
-					for i := int64(0); i < int64(len(rf.peersIP)); i++ {
-						if i != rf.me {
+					for i := int64(0); i < int64(len(rf.cfg.Peers)); i++ {
+						if i != rf.cfg.Me {
 							rf.sendVoteRequest(i, &protobuf.VoteRequest{
 								Term:        rf.state.Term,
-								CandidateId: rf.me,
+								CandidateId: rf.cfg.Me,
 								LastLogIdx:  lastLog.LogIndex,
 								LastLogTerm: lastLog.LogTerm,
 							})
@@ -248,11 +248,11 @@ func (rf *raft) stateMachine() {
 					rf.randElectionTimer()
 
 					lastLog := rf.state.Logs.LastLog()
-					for i := int64(0); i < int64(len(rf.peersIP)); i++ {
-						if i != rf.me {
+					for i := int64(0); i < int64(len(rf.cfg.Peers)); i++ {
+						if i != rf.cfg.Me {
 							rf.sendVoteRequest(i, &protobuf.VoteRequest{
 								Term:        rf.state.Term,
-								CandidateId: rf.me,
+								CandidateId: rf.cfg.Me,
 								LastLogIdx:  lastLog.LogIndex,
 								LastLogTerm: lastLog.LogTerm,
 							})
@@ -260,8 +260,8 @@ func (rf *raft) stateMachine() {
 					}
 				// leader超时是定时器超时, 只需要发送心跳维统治即可
 				case "leader":
-					for i := int64(0); i < int64(len(rf.peersIP)); i++ {
-						if i != rf.me {
+					for i := int64(0); i < int64(len(rf.cfg.Peers)); i++ {
+						if i != rf.cfg.Me {
 							rf.leaderSendLogs(i)
 						}
 					}
@@ -385,7 +385,7 @@ func (rf *raft) stateMachine() {
 					if rf.state.State == "candidate" {
 						rf.state.State = "follower"
 						rf.state.PersistInfo.Term = input.Term
-						rf.state.PersistInfo.VotedForThisTerm = rf.me
+						rf.state.PersistInfo.VotedForThisTerm = rf.cfg.Me
 						rf.persist(nil)
 					}
 
@@ -403,7 +403,7 @@ func (rf *raft) stateMachine() {
 							ReqTerm:              val.Term,
 							ReqLastIncludedIndex: val.LastIncludedIndex,
 							ReqLastIncludedTerm:  val.LastIncludedTerm,
-							Id:                   rf.me,
+							Id:                   rf.cfg.Me,
 							Term:                 rf.state.Term,
 						})
 						break
@@ -433,7 +433,7 @@ func (rf *raft) stateMachine() {
 						ReqTerm:              val.Term,
 						ReqLastIncludedIndex: val.LastIncludedIndex,
 						ReqLastIncludedTerm:  val.LastIncludedTerm,
-						Id:                   rf.me,
+						Id:                   rf.cfg.Me,
 						Term:                 rf.state.Term,
 					})
 				case *protobuf.InstallSnapshotReply:
@@ -463,9 +463,9 @@ func (rf *raft) stateMachine() {
 
 					sortedMatchIndex := make([]int64, len(rf.state.MatchIndex))
 					copy(sortedMatchIndex, rf.state.MatchIndex)
-					sortedMatchIndex[rf.me] = int64(len(rf.state.PersistInfo.Logs)) - 1
+					sortedMatchIndex[rf.cfg.Me] = int64(len(rf.state.PersistInfo.Logs)) - 1
 					int64Sorts(sortedMatchIndex)
-					N := sortedMatchIndex[len(rf.peersIP)/2]
+					N := sortedMatchIndex[len(rf.cfg.Peers)/2]
 					if N > rf.state.CommitIndex && rf.state.PersistInfo.Logs.
 						GetByIndex(N).LogTerm == rf.state.PersistInfo.Term {
 						rf.commit(N, rf.state.Logs.GetByIndex(N))
@@ -499,7 +499,7 @@ func (rf *raft) stateMachine() {
 					if val.VoteGranted {
 						rf.state.ReceivedNAgrees++
 						// 收到半数以上选票, 变为leader
-						if rf.state.ReceivedNAgrees > len(rf.peersIP)/2 {
+						if rf.state.ReceivedNAgrees > len(rf.cfg.Peers)/2 {
 							rf.state.State = "leader"
 							/*
 								上任后, 认为每个节点都同步到了最新的日志, 之后follower可以通过拒绝日志回溯所需日志
@@ -508,7 +508,7 @@ func (rf *raft) stateMachine() {
 								last log index + 1)
 							*/
 							nextIndex := rf.state.Logs.LastLogIndex() + 1
-							for i := 0; i < len(rf.peersIP); i++ {
+							for i := 0; i < len(rf.cfg.Peers); i++ {
 								rf.state.NextLogIndex[i] = nextIndex
 								rf.state.MatchIndex[i] = 0
 							}
@@ -629,7 +629,7 @@ func (rf *raft) stateMachine() {
 					if rf.state.State == "candidate" {
 						rf.state.State = "follower"
 						rf.state.PersistInfo.Term = input.Term
-						rf.state.PersistInfo.VotedForThisTerm = rf.me
+						rf.state.PersistInfo.VotedForThisTerm = rf.cfg.Me
 						rf.persist(nil)
 					}
 
@@ -639,7 +639,7 @@ func (rf *raft) stateMachine() {
 					// 比CommitIndex都还小, 已经确定拥有全数日志, Success给True
 					if val.PreLogIndex+int64(len(entries)) <= rf.state.CommitIndex {
 						rf.sendAppendEntriesReply(val.LeaderId, &protobuf.AppendEntriesReply{
-							Id:             rf.me,
+							Id:             rf.cfg.Me,
 							ReqTerm:        val.Term,
 							PreIndex:       val.PreLogIndex,
 							Success:        true,
@@ -652,7 +652,7 @@ func (rf *raft) stateMachine() {
 					// 压根没有这条日志, ConflictIndex给-1, 要求leader回退
 					if rf.state.Logs.LastLog().LogIndex < val.PreLogIndex {
 						rf.sendAppendEntriesReply(val.LeaderId, &protobuf.AppendEntriesReply{
-							Id:             rf.me,
+							Id:             rf.cfg.Me,
 							Term:           rf.state.Term,
 							PreIndex:       val.PreLogIndex,
 							Success:        false,
@@ -688,7 +688,7 @@ func (rf *raft) stateMachine() {
 						rf.state.Logs.TruncateBy(val.PreLogIndex)
 						rf.persist(nil)
 						rf.sendAppendEntriesReply(val.LeaderId, &protobuf.AppendEntriesReply{
-							Id:             rf.me,
+							Id:             rf.cfg.Me,
 							Term:           rf.state.Term,
 							PreIndex:       val.PreLogIndex,
 							Success:        false,
@@ -719,7 +719,7 @@ func (rf *raft) stateMachine() {
 					}
 
 					rf.sendAppendEntriesReply(val.LeaderId, &protobuf.AppendEntriesReply{
-						Id:             rf.me,
+						Id:             rf.cfg.Me,
 						Term:           rf.state.Term,
 						PreIndex:       originPreLogIdx,
 						Success:        true,
@@ -789,9 +789,9 @@ func (rf *raft) stateMachine() {
 						// term == currentTerm: set commitIndex = N
 						sortedMatchIndex := make([]int64, len(rf.state.MatchIndex))
 						copy(sortedMatchIndex, rf.state.MatchIndex)
-						sortedMatchIndex[rf.me] = rf.state.Logs.LastLogIndex()
+						sortedMatchIndex[rf.cfg.Me] = rf.state.Logs.LastLogIndex()
 						int64Sorts(sortedMatchIndex)
-						N := sortedMatchIndex[len(rf.peersIP)/2]
+						N := sortedMatchIndex[len(rf.cfg.Peers)/2]
 						if N > rf.state.CommitIndex && rf.state.PersistInfo.Logs.
 							GetByIndex(N).LogTerm == rf.state.PersistInfo.Term {
 							rf.commit(N, rf.state.Logs.GetByIndex(N))

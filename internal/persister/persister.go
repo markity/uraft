@@ -61,11 +61,6 @@ func (p *Persister) GetSnapshotSize() int64 {
 	return p.SnapshotSize
 }
 
-// TODO: Cleanup会清除旧的raft state和日志, 但是可能比较耗时, 先不急着实现
-func (p *Persister) Cleanup() {
-	panic("not implemented yet")
-}
-
 func NewPersister(name string) (*Persister, error) {
 	sl, err := wal.Open(name+"/snapshot", nil)
 	if err != nil {
@@ -87,7 +82,14 @@ func NewPersister(name string) (*Persister, error) {
 		return nil, err
 	}
 
-	data, err := sl.Read(slidx)
+	snapshotData, err := sl.Read(slidx)
+	if err != nil {
+		if !errors.Is(err, wal.ErrNotFound) {
+			panic(err)
+		}
+	}
+
+	raftstateData, err := rl.Read(rlidx)
 	if err != nil {
 		if !errors.Is(err, wal.ErrNotFound) {
 			panic(err)
@@ -97,8 +99,9 @@ func NewPersister(name string) (*Persister, error) {
 	return &Persister{
 		RaftStateLog:          rl,
 		RaftStateLastLogIndex: int64(rlidx),
+		RaftStateSize:         int64(len(raftstateData)),
 		SnapshotLog:           sl,
 		SnapshotLastLogIndex:  int64(slidx),
-		SnapshotSize:          int64(len(data)),
+		SnapshotSize:          int64(len(snapshotData)),
 	}, nil
 }

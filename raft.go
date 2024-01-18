@@ -2,7 +2,6 @@ package uraft
 
 import (
 	"net"
-	"net/netip"
 	"sync/atomic"
 	"time"
 
@@ -22,14 +21,7 @@ type RaftIface interface {
 }
 
 type raft struct {
-	// 对等端的ip地址
-	peersIP []netip.AddrPort
-
-	// peersIP[me] == 自己的ip地址
-	me int64
-
-	// snapshot和raft state保存的地方
-	logPath string
+	cfg RaftConfig
 
 	reqDead         chan chan struct{}
 	reqGetState     chan chan structs.GetStateInfo
@@ -67,12 +59,12 @@ func (rf *raft) Start() chan ApplyMsg {
 		rf.applyCh = applyCh
 		rf.serverCloseChan = make(chan struct{}, 1)
 		var err error
-		rf.persister, err = pers.NewPersister(rf.logPath)
+		rf.persister, err = pers.NewPersister(rf.cfg.LogPath)
 		if err != nil {
 			panic(err)
 		}
-		ip := rf.peersIP[rf.me].Addr().As4()
-		port := rf.peersIP[rf.me].Port()
+		ip := rf.cfg.Peers[rf.cfg.Me].Addr().As4()
+		port := rf.cfg.Peers[rf.cfg.Me].Port()
 		listener, err := net.ListenTCP("tcp", &net.TCPAddr{
 			IP:   net.IPv4(ip[0], ip[1], ip[2], ip[3]),
 			Port: int(port),
@@ -138,11 +130,24 @@ func (rf *raft) Snapshot(snapshotBytes []byte, idx int64) {
 	<-c
 }
 
-func NewRaft(me int64, peers []netip.AddrPort, logPath string) RaftIface {
-	_ = peers[me] // 试探是否越界
+func NewRaft(config RaftConfig) RaftIface {
+	_ = config.Peers[config.Me] // 试探是否越界
+	if config.ElectionIntervalLowMS <= 0 {
+		config.ElectionIntervalLowMS = 300
+	}
+	if config.ElectiontIntervalHighMS <= 0 {
+		config.ElectiontIntervalHighMS = config.ElectionIntervalLowMS + 150
+	}
+	if config.HeartbeatIntervalMS <= 0 {
+		config.HeartbeatIntervalMS = 100
+	}
+	if config.MaxAppendEntries <= 0 {
+		config.MaxAppendEntries = 0
+	}
+	if len(config.Peers) == 0 {
+		panic("len(peers) cannot be 0")
+	}
 	return &raft{
-		me:      me,
-		peersIP: peers,
-		logPath: logPath,
+		cfg: config,
 	}
 }

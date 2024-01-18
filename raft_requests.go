@@ -11,7 +11,7 @@ import (
 
 // packet 1
 func (rf *raft) sendVoteRequest(to int64, req *protobuf.VoteRequest) {
-	peer := rf.peersIP[to]
+	peer := rf.cfg.Peers[to]
 	go func() {
 		conn, err := net.Dial("tcp", peer.String())
 		if err != nil {
@@ -32,7 +32,7 @@ func (rf *raft) sendVoteRequest(to int64, req *protobuf.VoteRequest) {
 
 // packet 2
 func (rf *raft) sendVoteReply(to int64, req *protobuf.VoteReply) {
-	peer := rf.peersIP[to]
+	peer := rf.cfg.Peers[to]
 	go func() {
 		conn, err := net.Dial("tcp", peer.String())
 		if err != nil {
@@ -53,7 +53,7 @@ func (rf *raft) sendVoteReply(to int64, req *protobuf.VoteReply) {
 
 // packet 3
 func (rf *raft) sendAppendEntriesRequest(to int64, req *protobuf.AppendEntriesRequest) {
-	peer := rf.peersIP[to]
+	peer := rf.cfg.Peers[to]
 	go func() {
 		conn, err := net.Dial("tcp", peer.String())
 		if err != nil {
@@ -74,7 +74,7 @@ func (rf *raft) sendAppendEntriesRequest(to int64, req *protobuf.AppendEntriesRe
 
 // packet 4
 func (rf *raft) sendAppendEntriesReply(to int64, req *protobuf.AppendEntriesReply) {
-	peer := rf.peersIP[to]
+	peer := rf.cfg.Peers[to]
 	go func() {
 		conn, err := net.Dial("tcp", peer.String())
 		if err != nil {
@@ -95,7 +95,7 @@ func (rf *raft) sendAppendEntriesReply(to int64, req *protobuf.AppendEntriesRepl
 
 // packet 5
 func (rf *raft) sendInstallSnapshotRequest(to int64, req *protobuf.InstallSnapshotRequest) {
-	peer := rf.peersIP[to]
+	peer := rf.cfg.Peers[to]
 	go func() {
 		conn, err := net.Dial("tcp", peer.String())
 		if err != nil {
@@ -116,7 +116,7 @@ func (rf *raft) sendInstallSnapshotRequest(to int64, req *protobuf.InstallSnapsh
 
 // packet 6
 func (rf *raft) sendInstallSnapshotReply(to int64, req *protobuf.InstallSnapshotReply) {
-	peer := rf.peersIP[to]
+	peer := rf.cfg.Peers[to]
 	go func() {
 		conn, err := net.Dial("tcp", peer.String())
 		if err != nil {

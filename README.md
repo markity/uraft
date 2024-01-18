@@ -1,10 +1,13 @@
 # URaft
 
-Current Status:
+Raft Status:
 
 - basic raft: ok
 - protobuf: ok
 - noop: ok
-- prevote: no
+- prevote: not yet
 
-当前正在开发, bug很多正在修复
+Application Examples Status:
+
+- kv example: ok
+- message queue: not yet
